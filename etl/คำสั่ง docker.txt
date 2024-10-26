@@ -1,0 +1,6 @@
+เผื่อลืม --build จะเห็น log
+ถ้า -d จะไม่เห็นต้องกดไปดูเอง
+
+docker-compose up --build หรือ docker-compose up -d
+
+docker exec -it etl-db-1 psql -U admin -d eeg_database
