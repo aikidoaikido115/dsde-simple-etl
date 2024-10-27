@@ -7,6 +7,10 @@ import fnmatch
 import asyncio
 
 
+#ทั้งหมดนี้คือ หลับตาอย่างเดียวไม่มี คลื่นสมองตอนลืมตา
+
+# train test ที่แบ่งมา แตกต่างกันตรงลำดับ train เป็น NS->SD test เป็น SD->NS ไม่รู้ว่า ลำดับ จะมีผลไหม หรือมันจะใช้ได้จริงไหมนะ
+
 current_path = os.getcwd()
 print("Current Path:", current_path)
 
@@ -25,14 +29,14 @@ def insert_participants():
     participants_data = pd.read_csv(file_path, sep='\t')
 
     for index, row in participants_data.iterrows():
-        if row['SessionOrder'].startswith("NS"):
+        # if row['SessionOrder'].startswith("NS"):
 
-            cursor.execute("""
-                INSERT INTO Participants (gender, age)
-                VALUES (%s, %s)
-                """,
-                (row['Gender'], row['Age'])
-            )
+        cursor.execute("""
+            INSERT INTO Participants (gender, age)
+            VALUES (%s, %s)
+            """,
+            (row['Gender'], row['Age'])
+        )
 
     connection.commit()
     print("insert participants success")
@@ -61,10 +65,10 @@ async def load_eeg_data(real_index, i):
         print(f"เกิดข้อผิดพลาดที่ sub-{real_index+1}: {e}")
         return None, None
 
-async def insert_eeg_data(i, files, sleep_status):
+async def insert_eeg_data(i, files, sleep_status, train_test_order):
 
     #มีไฟล์ หลับตาแค่ 38 ที่เหลือมีแต่ลืมตา
-    print("สรุป files ก่อนจะลด label ตรงนอนไม่พอออก มี:", len(files))
+    print("สรุป files ก่อนจะลด label ตาม checking_label มี:", len(files))
 
 
     # ตรวจสอบลำดับ
@@ -72,14 +76,14 @@ async def insert_eeg_data(i, files, sleep_status):
     checking_label = pd.read_csv(label, sep='\t')
 
     for index, row in checking_label.iterrows():
-        if not str(row['SessionOrder']).startswith("NS"):
+        if not str(row['SessionOrder']).startswith(train_test_order):#"NS"):
             checking_label.drop(index=index,inplace=True)
 
     # เอาเฉพาะ คนที่เริ่มจาก นอนพอ จากนั้น นอนไม่พอ
     files = [path for path in files if checking_label['participant_id'].isin([path.split('/')[2]]).any()]
 
 
-    print("สรุป files หลังลด label ตรงนอนไม่พอออก มี:", len(files))
+    print("สรุป files หลังลด label ตาม checking_label มี:", len(files))
 
     
     for j in range(len(files)):
@@ -97,9 +101,17 @@ async def insert_eeg_data(i, files, sleep_status):
         print("สรุป enumerate มี:", len(tuple(enumerate(channel_means))))
         print("สรุป info มี:", len(raw_data.info['ch_names']))
 
+
+        table = "train" if train_test_order == "NS" else "test" if train_test_order == "SD" else ""
+        # table = ""
+        # if train_test_order == "NS":
+        #     table = "train"
+        # elif train_test_order == "SD":
+        #     table = "test"
+
         for idx, mean in enumerate(channel_means):
-            cursor.execute("""
-                            INSERT INTO Eeg_data (participant_id, channel_name, channel_mean, sleep_status)
+            cursor.execute(f"""
+                            INSERT INTO Eeg_data_{table} (participant_id, channel_name, channel_mean, sleep_status)
                             VALUES (%s, %s, %s, %s)
                             """, (real_index+1, raw_data.info['ch_names'][idx], float(mean), sleep_status))
     connection.commit()
@@ -123,17 +135,26 @@ cursor = connection.cursor()
 insert_participants()
 
 
-for i in range(2):
-    directory_path = "/dataset"
+# trainset testset
+for order in range(2):
+    train_test_order = ["NS","SD"]
+    # ses 1 และ 2 (นอนพอ หรือไม่พอ) (((มันสลับกันได้))))
+    for i in range(2):
+        directory_path = "/dataset"
 
-    file_pattern = "sub-*_ses-{}_*eyesclosed_eeg.set".format(i+1)
+        file_pattern = "sub-*_ses-{}_*eyesclosed_eeg.set".format(i+1)
 
-    files = find_specific_files(directory_path, file_pattern)
+        files = find_specific_files(directory_path, file_pattern)
 
+        order_type = train_test_order[order]
+        sleep_status = ["good sleep", "bad sleep"] if order_type == "NS" else ["bad sleep", "good sleep"] if order_type == "SD" else []
+        # sleep_status = []
+        # if train_test_order[order] == "NS":
+        #     sleep_status = ["good sleep", "bad sleep"]
+        # elif train_test_order[order] == "SD":
+        #     sleep_status = ["bad sleep", "good sleep"]
 
-    sleep_status = ["good sleep", "bad sleep"]
-
-    asyncio.run(insert_eeg_data(i, files, sleep_status=sleep_status[i]))
+        asyncio.run(insert_eeg_data(i, files, sleep_status=sleep_status[i], train_test_order=train_test_order[order]))
 
 
 cursor.close()

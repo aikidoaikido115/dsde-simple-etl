@@ -5,8 +5,18 @@ CREATE TABLE Participants (
     
 );
 
-CREATE TABLE Eeg_data (
-    eeg_id SERIAL PRIMARY KEY,
+CREATE TABLE Eeg_data_train (
+    eeg_train_id SERIAL PRIMARY KEY,
+    participant_id INT,
+    channel_name VARCHAR,
+    channel_mean FLOAT,
+    sleep_status VARCHAR(10) CHECK (sleep_status IN ('good sleep', 'bad sleep')),
+    dataset_type VARCHAR(10) CHECK (dataset_type IN ('train', 'test')),
+    CONSTRAINT fk_Eeg_data_Participants FOREIGN KEY (participant_id) REFERENCES Participants (participant_id) ON DELETE RESTRICT ON UPDATE CASCADE
+);
+
+CREATE TABLE Eeg_data_test (
+    eeg_test_id SERIAL PRIMARY KEY,
     participant_id INT,
     channel_name VARCHAR,
     channel_mean FLOAT,
