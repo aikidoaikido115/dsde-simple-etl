@@ -11,7 +11,6 @@ CREATE TABLE Eeg_data_train (
     channel_name VARCHAR,
     channel_mean FLOAT,
     sleep_status VARCHAR(10) CHECK (sleep_status IN ('good sleep', 'bad sleep')),
-    dataset_type VARCHAR(10) CHECK (dataset_type IN ('train', 'test')),
     CONSTRAINT fk_Eeg_data_Participants FOREIGN KEY (participant_id) REFERENCES Participants (participant_id) ON DELETE RESTRICT ON UPDATE CASCADE
 );
 
